@@ -12,6 +12,7 @@ import genetic
 from fractions import Fraction
 import datetime
 import random
+from copy import deepcopy
 
 class Main:
     ### FIELDS and SETUP ###
@@ -117,7 +118,7 @@ class Main:
                 self.has_landed = False
             else:
                 # main controller area, overriding previous function doMove
-
+                self.analyzeBoard(parameters)
                 #self.doMove()
                 if self.restart:
                     break
@@ -129,6 +130,38 @@ class Main:
         return self.g.score
 
     def analyzeBoard(self, parameters):
+        # 2 elements, index 0 resolves number of rotations while index 1 resolves optimal positioning
+        instructions = []
+        best = {}
+        best['rotation'] = 0
+        best['index'] = 0
+        best['score'] = 0
+        # move all the way to the left
+        for i in range(len(self.g.board[0])):
+            self.g.movePiece(-1)
+        # rotation is 4
+        # movement is length it must cover
+        for rotation in range(4):
+            for movement in range(len(self.g.board[0])):
+                # don't want evaluate to run twice, in case of heavy overhead
+                newScore = self.evaluate(parameters)
+                if newScore > int(best['score']):
+                    best['rotation'] = int(rotation)
+                    best['index'] = int(movement)
+                    best['score'] = newScore
+                self.g.movePiece(1)
+            # mill it back to start
+            for i in range(len(self.g.board[0])):
+                self.g.movePiece(-1)
+            self.g.rotatePiece()
+        instructions.append(best['rotation'])
+        instructions.append(best['index'])
+        self.positionAndDropPiece(instructions)
+
+    def evaluate(self, parameters):
+        # copy landed and board, landed seems to be a pre to board
+        previousLanded = deepcopy(self.g.landed)
+        previousBoard - deepcopy(self.g.board)
 
     # @params instructions - contains 2 instructions. First is n rotations and second is optimal position
     def positionAndDropPiece(self, instructions):
@@ -136,7 +169,7 @@ class Main:
         # rotate the piece n times according to instructions
         for i in range(int(instructions[0])):
             self.g.rotatePiece()
-        requiredMoves = int(instructions[0]) - self.g.getCurrPiece().topLeft.column
+        requiredMoves = int(instructions[1]) - self.g.getCurrPiece().topLeft.column
         if requiredMoves < 0:
             while requiredMoves is not 0:
                 self.doMove(-1)

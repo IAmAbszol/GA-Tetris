@@ -91,3 +91,10 @@ The steps
 1. Calcuate number of moves from current (getCurrPiece().topLeft.column) position
 2. Iterate through from position to coordinate. Use difference, if negative then left else right
 3. dropPiece()
+
+Function : Evaluate
+The evaluate function intends on simulating the piece being dropped at that coordinate and following through with calculating the fitness of that drop.
+
+For the drop it will have to be deep copied along with a new function(s) inside __game__.py where dropPiece() will no longer be used within this function.
+Instead dropPiece(), fallPiece(), and landPiece() will be combined into a much larger function for the purpose of catering evaluate.
+In this function, it will not affect scores, telling the game the piece actually dropped, etc. Instead this function will simulate the drop, calculate the benefit/fitness, then overwrite the current board/landed with the previous board/landed so no nothing should affect the flow of the game.
