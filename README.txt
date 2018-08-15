@@ -1,100 +1,43 @@
-Thanks to https://github.com/epai/tetris-terminal-game
-Main framework for the Tetris game along with an impressive
-backend that allows for code manipulation of the game to be quite easy
-for adapting this algorithm
+# Genetic Algorithm developed using Python & Java
 
-Steps for Tetris AI
-AI geneset will only be 0, 0.01, 0.02 ... .99, 1, ..... 10
-Thus any decimals of length 2 up to 10
+# Completely overhauled the original project
 
-Fitness will evaluate positioning of the pieces and using the genes
-to calculate the "reward"
+Thanks to Github user 'Silvasur' for the incredibly simple Tetris game.
 
-Mutation will alter the genes
+I ended up reworking it from using Pygame to a simple text based board since
+Pygame wouldn't allow for multiple players to be spawned. This is from Pygame's
+"hook" to the Python Interpreter and possibly the kernel in an effort to lock
+multiple threads from being created of that game instance.
 
+Link to simple tetris: https://gist.github.com/silvasur/565419
 
-How this will all work
+# Description
 
-Each genetic algorithm occurs when the best fitness is found from running
-n iterations through 4 rotations each, thus 4n.
+The Tetris Genetic Algorithm is responsible for playing Tetris at it's best given the proper genes to complete
+the evaluation phase of its programming when playing.
 
-The GA parent is determined by the highest score, thus resulting parents
-target will be measured by score.
+Utilizing Python3 as it's back-end and Java 1.8 as its front-end, the program can spawn as many players as need be
+while allowing the user to maniupulate the front-end to their desire.
 
+# Prerequisites
 
+Java >= 1.7
 
-So
-* Mutation
-- Changes genes that target how fitness works
+Python >= 3.5 (Comes pre-installed with pip)
 
-* Fitness
-- Evaluates the best place to put that object given the simulated positions
---> Send the 4n iterations through a loop to yield best fitness
+# Installation
 
+Simple, run ```pip install -r requirements.txt``` for all the requirements needed by Py4j
 
-The technical
+# Running
 
-Flowchart
+```
+python run.py
+```
 
-get_fitness(genes):
-0. Game start
-1. Run
-    a. Using only "fitness" --> (Calculate BEST piece position by using fitness "score" parameters)
-    b. Move piece n directions then drop when complete
-    c. Loop
-2. Game ends, take score. (Initial collection only) else compare new parent score vs this. Replace
+# Customization :)
 
-Thus could fitness play tetris to measure it? I think so
-Fitness will be a score, wanting score for optimal can be 1000000...
-Run tetris on fitness
+The code to customize the PythonGUI further can be found at: https://github.com/IAmAbszol/Dynamic-Multiplayer-Text-Board 
 
-Functions to use and documentation to what it needs
-All required functions are within the Game class/__game__.py
-
-Functions
-    - dropPiece() : Will be used once piece has been observed to be placed in the correct position
-    - doMove(int) : Requires [ 1, -1 ] as its only parameter, -1 to move left else 1 for right else return
-
-Fields
-    - simulateLanded : Prints the board of the landing position. 
-        * Implementation may not be needed as a direct approach of calculation can be used. * Look into it though
-    - grabs ahold of current board schema
-
-Rig game start into the get_fitness function
-Rig game end as a return with the score attached for fitness to use.
-
-Parameters (Genes)
-indecies
-0 - Evaluate clear line reward
-1 - Fill up line reward
-2 - Penalize gap
-3 - Penalize height
-
-Utilizing doMove appropriately
-I don't wish to access the Game object if not needed, so the only access from it
-will be the currPiece.topLeft.column field value that changes as the piece moves.
-This will prove useful for black box testing the number of columns, rather than count
-and calculate, a simple check will be used
-doMove(-1)
-if prevColumn == getCurrPiece().topLeft.column:
-    start moving to the right.
-
-The program will act like a 3D printer, adjust to 0,0 and move from left to right.
-Then it re-initializes at n,0 and continues.
-
-After each iteration, rotatePiece() is called to rotate and re-evaluate
-The coordinates and rotation number is calculated and stored for the highest fitness
-
-Next the program will take the desired coordinate and rotation.
-The steps
-0. Rotate once (After iterating, the ending rotation should be 3 of 4, 4 being reset so calling rotate will/should be back in reset position)
-1. Calcuate number of moves from current (getCurrPiece().topLeft.column) position
-2. Iterate through from position to coordinate. Use difference, if negative then left else right
-3. dropPiece()
-
-Function : Evaluate
-The evaluate function intends on simulating the piece being dropped at that coordinate and following through with calculating the fitness of that drop.
-
-For the drop it will have to be deep copied along with a new function(s) inside __game__.py where dropPiece() will no longer be used within this function.
-Instead dropPiece(), fallPiece(), and landPiece() will be combined into a much larger function for the purpose of catering evaluate.
-In this function, it will not affect scores, telling the game the piece actually dropped, etc. Instead this function will simulate the drop, calculate the benefit/fitness, then overwrite the current board/landed with the previous board/landed so no nothing should affect the flow of the game.
+Detailed documentation in terms of how the methods work are provided though code examples are yet to be added. This
+will probably come later when I'll need this outside of Python.
