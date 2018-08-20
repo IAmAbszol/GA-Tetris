@@ -9,6 +9,8 @@ import random
 from math import e
 from copy import deepcopy
 
+import os
+
 cols = 10
 rows = 22
 sleep = 500 # ms?
@@ -37,6 +39,7 @@ tetris_shapes = [
 
 # build a deck of 1000 pieces, all going to be the same for every game created (better testing for now)
 deck = [tetris_shapes[random.randrange(len(tetris_shapes))] for i in range(10000)]
+#deck = [tetris_shapes[6], tetris_shapes[0], tetris_shapes[0]]
 
 def rotate_clockwise(shape):
     return [[shape[y][x]
@@ -106,13 +109,21 @@ class TetrisGame():
         self.score = 0
         self.lines = 0
 
-    def display_board(self, board):
+    def display_board(self, board, score=None):
         if self.display:
             print("Displaying {}".format(self.caller))
+            file = open("display.txt", "a")
             for r in range(len(board)):
                 for c in range(len(board[r])):
                     print("{} ".format(board[r][c]), end="")
+                    file.write("{} ".format(board[r][c]))
                 print("")
+                file.write("\n")
+            if not score is None:
+                file.write("{}\n\n".format(score))
+            else:
+                file.write("\n\n")
+            file.close()
 
     def add_cl_lines(self, n):
         linescores = [0, 40, 100, 300, 1200]
@@ -171,7 +182,7 @@ class TetrisGame():
                                    (self.stone_x, self.stone_y)):
                 self.stone = new_stone
 
-    def run(self, genes, draw):
+    def run(self, genes, draw, desired):
         # AI will not actually use keyboard presses
         key_actions = {
             'LEFT': lambda : self.move(-1),
@@ -184,11 +195,19 @@ class TetrisGame():
         self.new_stone()
         while True:
             if self.gameover:
+                #draw(self.caller, self.board, genes, self.score, waiting=True)
                 return self.score
             else:
+                #for i in range(2):
                 self.analyze_board(genes)
-
+                #self.display_board(self.board)
+                #return 0
                 draw(self.caller, self.board, genes, self.score)
+                
+                if self.score >= desired:
+                    file = open("god.txt", "w")
+                    file.write("{}\n".format(genes))
+                    exit(0)
 
     # taken from my previous attempt, its pretty solid =D
     def analyze_board(self, genes):
@@ -200,7 +219,7 @@ class TetrisGame():
         eval_x = self.stone_x
         eval_y = self.stone_y
         instructions = []
-        best = {'rotation': 0, 'index': 0, 'score': 0}
+        best = {'rotation': 0, 'index': 0, 'score': -1000000}
         for i in range(cols):
             self.move(-1)
         for rotation in range(4):
@@ -228,7 +247,7 @@ class TetrisGame():
 
     @staticmethod
     def level_value_assignment(row):
-        return rows * e ** -row
+        return -row + rows
 
     # evaluation function focuses on
     # 0. Line clear potential --> Evaluating based on number of holes left after succession and how close
@@ -237,7 +256,9 @@ class TetrisGame():
     #    Uses level evaluation equation to score appropriately
     # 2. Cumulative height --> Taking sum difference of heights based on histogram representation of figure.
     # Testing revision: Restrict values [Decimal -> (positive, negative)]
-    # 3. Reward min gap coverage based on where the piece is to be evaluated
+    # 3. Reward more touching of blocks
+    # 4. Punish putting blocks on preexisting holes
+    # 5. Reward touching floor and wall
     def evaluate_decision(self, board, genes):
         score = 0
         shadow_board = deepcopy(board)
@@ -245,21 +266,55 @@ class TetrisGame():
             if not check_collision(shadow_board, self.stone, (self.stone_x, self.stone_y)):
                 self.stone_y += 1
             else:
-                join_matrixes(shadow_board, self.stone, (self.stone_x, self.stone_y))
-
-        row_histogram = [0] * rows
+                break
+        join_matrixes(shadow_board, self.stone, (self.stone_x, self.stone_y))
+        height_histogram = [0] * cols
         hole_score = 0
-        for i in range((rows-1), -1, -1):
-            # constraint 0
-            # start at rows, iterate to 0 (n-1)-->(n-(-1)) = n+1 where n was 0, -1 to decrement third parameter
-            if sum(1 for x in shadow_board[i] if x > 0) > 0:
-                row_histogram[i] = sum(1 for x in shadow_board[i] if x > 0)
-            # constraint 1
-            # sum all holes on rows with blocks in them
-            if sum(1 for x in shadow_board[i] if x > 0) > 0:
-                hole_score += sum(1 for x in shadow_board[i] if x == 0) * \
-                              genes[1] if genes[1] <= 0 else -genes[1] * self.level_value_assignment(i)
-        score += max(row_histogram) * genes[0] if genes[0] >= 0 else -genes[0] + hole_score
+        touch_score = 0
+        border_score = 0
+        blocking_score = 0
+        # new approach, only focus solely on rows being affected
+        desired_rows = [int(i) for i in range((self.stone_y - 1), (self.stone_y + len(self.stone) - 1))]
+        row_histogram = [0] * len(desired_rows)
+        id = max(max(self.stone))
+        for index, row in enumerate(desired_rows):
+            # constraint 0 - Reworked to handle only rows being affected.
+            # stil using histogram approach, this time we sum the histo and
+            # evaluate properly to a row score.
+            row_histogram[index] = sum(1 for x in shadow_board[row] if x > 0)
+            # constraint 1 - Reworked to handle only rows being affected.
+            # still using number of holes approach.
+            hole_score += sum(1 for x in shadow_board[row] if x == 0) * \
+                            self.level_value_assignment((rows - row))
+                            
+            # constraint 3
+            for idx, col in enumerate(shadow_board[row]):
+                if col == id:
+                    # eval LRD
+                    eval_idx = idx
+                    if idx > 0:
+                        eval_idx -= 1
+                        if shadow_board[row][eval_idx] > 0 and not shadow_board[row][eval_idx] == id:
+                            touch_score += 1
+                    else:
+                        border_score += 1
+                    
+                    eval_idx = idx
+                    if idx < (cols - 1):
+                        eval_idx += 1
+                        if shadow_board[row][eval_idx] > 0 and not shadow_board[row][eval_idx] == id:
+                            touch_score += 1
+                    else:
+                        border_score += 1
+                    
+                    if not row == 21:
+                        eval_row = (row + 1)
+                        if shadow_board[eval_row][idx] > 0 and not shadow_board[eval_row][idx] == id:
+                            touch_score += 1
+                    else:
+                        border_score += 1
+                        
+            
         # constraint 2
         height_histogram = [0] * cols
         for r in range(rows):
@@ -267,39 +322,27 @@ class TetrisGame():
                 if shadow_board[r][c] > 0:
                     if height_histogram[c] == 0:
                         height_histogram[c] = (rows - r)
-        score += max(height_histogram) * genes[2] if genes[2] <= 0 else -genes[2]
-        # constraint 3
-        # test to see if row(s) found have the desired evaluation block
-        '''
-        desired_rows = [int(i) for i in range((self.stone_y - 1), (self.stone_y + len(self.stone) - 1))]
-        gap_scores = [0] * len(desired_rows)
-        id = max(max(self.stone))
-        begin_reading = False
-        for index, row in enumerate(desired_rows):
-            if sum(1 for x in shadow_board[row] if x > 0 and x != id) > 0:
-                print("")
-            else:
-                # empty row besides our stone
-                # calculate favored side
-                what_side = int(cols - self.stone_x)
-                print("Right Side" if what_side < (cols / 2) else "Left Side")
-                if what_side < cols / 2:
-                    for x in shadow_board[row]:
-                        if x == id and not begin_reading:
-                            begin_reading = True
-                            continue
-                        if x != id and begin_reading:
-                            gap_scores[index] += 1
-                else:
-                    for x in shadow_board[row]:
-                        if x != id:
-                            gap_scores[index] += 1
-                        else:
+        
+        # constraint 4 - Only record the bottom-most layer of the shape, z shape records 1 top, 2 bottom
+        for rindex, row in enumerate(desired_rows):
+            for cindex, col in enumerate(shadow_board[row]):
+                if shadow_board[row][cindex] == id:
+                    # check if block under is id/0
+                    eval_row = row
+                    while not eval_row == 21:
+                        eval_row += 1
+                        if shadow_board[eval_row][cindex] == id:
                             break
-
-        score += (cols - sum(gap_scores))
-        '''
-        #self.display_board(shadow_board)
+                        if shadow_board[eval_row][cindex] == 0:
+                            blocking_score += 1
+                    
+        
+        score += max(row_histogram) * genes[0] + hole_score * genes[1]
+        score += (max(row_histogram) - min(row_histogram)) * genes[2]
+        score += touch_score * genes[3] + border_score * genes[5]
+        score += blocking_score * genes[4]
+        # bring in blockades (basically another height penalty, penalize for blocks height rather than whole)
+        #self.display_board(shadow_board, score)
         #print("Scored : {}".format(score))
         #print("Stone_x: {}\tStone_y: {}\tStone_height?: {}".format(self.stone_x, self.stone_y, len(self.stone)))
         return score
@@ -321,6 +364,8 @@ class TetrisGame():
 
 '''
 if __name__ == '__main__':
+    if os.path.exists("display.txt"):
+        os.remove("display.txt")
     App = TetrisGame("Hello", display=True)
-    App.run([5, -1, -4, 3])
+    App.run([5, -2, -4, 5, -5], None)
 '''
