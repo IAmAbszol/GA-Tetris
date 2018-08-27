@@ -9,9 +9,9 @@ import random
 from math import e
 from copy import deepcopy
 
-import os
+from scoring import Scoring
 
-cols = 10
+cols = 8
 rows = 22
 sleep = 500 # ms?
 
@@ -38,7 +38,8 @@ tetris_shapes = [
 ]
 
 # build a deck of 1000 pieces, all going to be the same for every game created (better testing for now)
-deck = [tetris_shapes[random.randrange(len(tetris_shapes))] for i in range(10000)]
+deck = [tetris_shapes[random.randrange(len(tetris_shapes))] for i in range(100000)]
+selection_deck = [[tetris_shapes[random.randrange(len(tetris_shapes))] for i in range(100000)] * 10]
 #deck = [tetris_shapes[6], tetris_shapes[0], tetris_shapes[0]]
 
 def rotate_clockwise(shape):
@@ -80,7 +81,8 @@ def new_board():
 
 class TetrisGame():
     def __init__(self, caller, display=False):
-        self.deck = deepcopy(deck)
+        #deck = [tetris_shapes[random.randrange(len(tetris_shapes))] for i in range(10000)]
+        self.deck = deepcopy(random.choice(selection_deck))
         self.next_stone = self.draw()
         self.display = display
         self.caller = caller
@@ -195,7 +197,7 @@ class TetrisGame():
         self.new_stone()
         while True:
             if self.gameover:
-                #draw(self.caller, self.board, genes, self.score, waiting=True)
+                draw(self.caller, self.board, genes, self.score, waiting=True)
                 return self.score
             else:
                 #for i in range(2):
@@ -249,18 +251,7 @@ class TetrisGame():
     def level_value_assignment(row):
         return -row + rows
 
-    # evaluation function focuses on
-    # 0. Line clear potential --> Evaluating based on number of holes left after succession and how close
-    #    it is to clearing. Idea to use for evaluation is a histogram
-    # 1. Number of holes --> Evaluating ONLY ON LINES WITH BLOCKS the number of holes, more = bad.
-    #    Uses level evaluation equation to score appropriately
-    # 2. Cumulative height --> Taking sum difference of heights based on histogram representation of figure.
-    # Testing revision: Restrict values [Decimal -> (positive, negative)]
-    # 3. Reward more touching of blocks
-    # 4. Punish putting blocks on preexisting holes
-    # 5. Reward touching floor and wall
     def evaluate_decision(self, board, genes):
-        score = 0
         shadow_board = deepcopy(board)
         for i in range(0, rows):
             if not check_collision(shadow_board, self.stone, (self.stone_x, self.stone_y)):
@@ -268,84 +259,8 @@ class TetrisGame():
             else:
                 break
         join_matrixes(shadow_board, self.stone, (self.stone_x, self.stone_y))
-        height_histogram = [0] * cols
-        hole_score = 0
-        touch_score = 0
-        border_score = 0
-        blocking_score = 0
-        # new approach, only focus solely on rows being affected
-        desired_rows = [int(i) for i in range((self.stone_y - 1), (self.stone_y + len(self.stone) - 1))]
-        row_histogram = [0] * len(desired_rows)
-        id = max(max(self.stone))
-        for index, row in enumerate(desired_rows):
-            # constraint 0 - Reworked to handle only rows being affected.
-            # stil using histogram approach, this time we sum the histo and
-            # evaluate properly to a row score.
-            row_histogram[index] = sum(1 for x in shadow_board[row] if x > 0)
-            # constraint 1 - Reworked to handle only rows being affected.
-            # still using number of holes approach.
-            hole_score += sum(1 for x in shadow_board[row] if x == 0) * \
-                            self.level_value_assignment((rows - row))
-                            
-            # constraint 3
-            for idx, col in enumerate(shadow_board[row]):
-                if col == id:
-                    # eval LRD
-                    eval_idx = idx
-                    if idx > 0:
-                        eval_idx -= 1
-                        if shadow_board[row][eval_idx] > 0 and not shadow_board[row][eval_idx] == id:
-                            touch_score += 1
-                    else:
-                        border_score += 1
-                    
-                    eval_idx = idx
-                    if idx < (cols - 1):
-                        eval_idx += 1
-                        if shadow_board[row][eval_idx] > 0 and not shadow_board[row][eval_idx] == id:
-                            touch_score += 1
-                    else:
-                        border_score += 1
-                    
-                    if not row == 21:
-                        eval_row = (row + 1)
-                        if shadow_board[eval_row][idx] > 0 and not shadow_board[eval_row][idx] == id:
-                            touch_score += 1
-                    else:
-                        border_score += 1
-                        
-            
-        # constraint 2
-        height_histogram = [0] * cols
-        for r in range(rows):
-            for c in range(cols):
-                if shadow_board[r][c] > 0:
-                    if height_histogram[c] == 0:
-                        height_histogram[c] = (rows - r)
-        
-        # constraint 4 - Only record the bottom-most layer of the shape, z shape records 1 top, 2 bottom
-        for rindex, row in enumerate(desired_rows):
-            for cindex, col in enumerate(shadow_board[row]):
-                if shadow_board[row][cindex] == id:
-                    # check if block under is id/0
-                    eval_row = row
-                    while not eval_row == 21:
-                        eval_row += 1
-                        if shadow_board[eval_row][cindex] == id:
-                            break
-                        if shadow_board[eval_row][cindex] == 0:
-                            blocking_score += 1
-                    
-        
-        score += max(row_histogram) * genes[0] + hole_score * genes[1]
-        score += (max(row_histogram) - min(row_histogram)) * genes[2]
-        score += touch_score * genes[3] + border_score * genes[5]
-        score += blocking_score * genes[4]
-        # bring in blockades (basically another height penalty, penalize for blocks height rather than whole)
-        #self.display_board(shadow_board, score)
-        #print("Scored : {}".format(score))
-        #print("Stone_x: {}\tStone_y: {}\tStone_height?: {}".format(self.stone_x, self.stone_y, len(self.stone)))
-        return score
+        score = Scoring((shadow_board, rows, cols))
+        return score.get_score((self.stone, self.stone_x, self.stone_y), genes)
 
     def position_and_drop(self, instructions):
         # piece should be at neutral position
